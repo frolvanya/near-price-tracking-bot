@@ -9,12 +9,12 @@ Commands:
 
 /getprice - get current NEAR price
 
-/triggerlower - notifies when NEAR price is <= current price
-/triggerhigher - notifies when NEAR price is >= current price
+/triggerlower {price} - notifies when NEAR price is <= current price
+/triggerhigher {price} - notifies when NEAR price is >= current price
 /triggers - notifies when NEAR price is <= current price
 
-/deletelower - delete trigger for lower price
-/deletehigher - delete trigger for higher price
-/delete - delete triggers for lower AND higher prices
+/deletelower {price} - delete trigger for lower price
+/deletehigher {price} - delete trigger for higher price
+/delete {price} - delete triggers for lower AND higher prices
 /deleteall - delete ALL triggers
 ```
