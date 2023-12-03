@@ -21,18 +21,19 @@ use teloxide::{
 pub enum Trigger {
     Lower(price::Price),
     Higher(price::Price),
+    Neutral(price::Price),
 }
 
 impl Trigger {
     fn set(&mut self, price: price::Price) {
         match self {
-            Self::Lower(x) | Self::Higher(x) => *x = price,
+            Self::Lower(x) | Self::Higher(x) | Self::Neutral(x) => *x = price,
         }
     }
 
     const fn price(&self) -> price::Price {
         match self {
-            Self::Lower(x) | Self::Higher(x) => *x,
+            Self::Lower(x) | Self::Higher(x) | Self::Neutral(x) => *x,
         }
     }
 }
@@ -40,8 +41,9 @@ impl Trigger {
 impl fmt::Display for Trigger {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Lower(x) => write!(f, "менша за {x:.2}$"),
-            Self::Higher(x) => write!(f, "більша за {x:.2}$"),
+            Self::Lower(x) => write!(f, "менше ніж {x:.2}$"),
+            Self::Higher(x) => write!(f, "більше ніж {x:.2}$"),
+            Self::Neutral(_) => unreachable!(),
         }
     }
 }
@@ -51,14 +53,15 @@ impl fmt::Debug for Trigger {
         match self {
             Self::Lower(x) => write!(f, "Trigger::Lower({x:.2})"),
             Self::Higher(x) => write!(f, "Trigger::Higher({x:.2})"),
+            Self::Neutral(_) => unreachable!(),
         }
     }
 }
 
 pub async fn start(bot: Bot, dialogue: MyDialogue) -> HandlerResult {
     let buttons = [
-        ("Надіслати повідомлення якщо ціна менша за ...", "Lower"),
-        ("Надіслати повідомлення якщо ціна більша за ...", "Higher"),
+        ("Надіслати повідомлення якщо ціна менше ніж ...", "Lower"),
+        ("Надіслати повідомлення якщо ціна більше ніж ...", "Higher"),
     ]
     .map(|(button, callback)| [InlineKeyboardButton::callback(button, callback)]);
 
@@ -272,28 +275,31 @@ pub async fn choose_trigger_to_delete(
 }
 
 fn remove_triggered(
-    triggered: Vec<(ChatId, price::Price)>,
+    triggered: Vec<(ChatId, Trigger)>,
     mut locked_triggers: tokio::sync::MutexGuard<'_, HashMap<ChatId, Vec<Trigger>>>,
 ) -> bool {
     let mut found = false;
 
-    for (chat_id, price) in triggered {
-        info!("Removing {:.2}$ from triggers for chat {}", price, chat_id);
+    for (chat_id, trigger) in triggered {
+        info!(
+            "Removing {:.2}$ from triggers for chat {}",
+            trigger.price(),
+            chat_id
+        );
 
         locked_triggers
             .entry(chat_id)
             .and_modify(|target_prices| {
-                target_prices.retain(|x| {
-                    if let Trigger::Lower(x) = x {
-                        found = true;
-                        (x - price).abs() > f64::EPSILON
-                    } else if let Trigger::Higher(x) = x {
-                        found = true;
-                        (x - price).abs() > f64::EPSILON
-                    } else {
-                        true
-                    }
+                let length_before = target_prices.len();
+
+                target_prices.retain(|trigger_price| match (trigger_price, trigger.clone()) {
+                    (Trigger::Lower(x), Trigger::Lower(y))
+                    | (Trigger::Higher(x), Trigger::Higher(y)) => (x - y).abs() > f64::EPSILON,
+                    (_, Trigger::Neutral(y)) => (trigger_price.price() - y).abs() > f64::EPSILON,
+                    _ => true,
                 });
+
+                found |= length_before != target_prices.len();
             })
             .or_default();
 
@@ -319,7 +325,10 @@ pub async fn delete(
 ) -> HandlerResult {
     info!("Deleting trigger...");
 
-    if remove_triggered(vec![(dialogue.chat_id(), price)], triggers.lock().await) {
+    if remove_triggered(
+        vec![(dialogue.chat_id(), Trigger::Neutral(price))],
+        triggers.lock().await,
+    ) {
         info!("Deleted trigger for chat {}", dialogue.chat_id());
 
         bot.send_message(
@@ -388,34 +397,34 @@ pub async fn process(
 
             for (chat_id, triggers_vec) in locked_triggers.iter() {
                 if let Ok(Some(price)) = current_price {
-                    for target_price in triggers_vec {
-                        if let &Trigger::Lower(target_price) = target_price {
+                    for trigger in triggers_vec {
+                        if let &Trigger::Lower(target_price) = trigger {
                             if price <= target_price {
                                 info!("NEAR price is lower than {target_price:.2}$ for chat {chat_id}");
 
                                 bot.send_message(
                                     *chat_id,
                                     format!(
-                                        "Ціна на NEAR зараз менша за {target_price:.2}$\nПоточна ціна: {price:.2}$"
+                                        "Ціна на NEAR зараз менше ніж {target_price:.2}$\nПоточна ціна: {price:.2}$"
                                     ),
                                 )
                                 .await?;
 
-                                triggered.push((*chat_id, target_price));
+                                triggered.push((*chat_id, trigger.clone()));
                             }
-                        } else if let &Trigger::Higher(target_price) = target_price {
+                        } else if let &Trigger::Higher(target_price) = trigger {
                             if price >= target_price {
                                 info!("NEAR price is higher than {target_price:.2}$ for chat {chat_id}");
 
                                 bot.send_message(
                                     *chat_id,
                                     format!(
-                                        "Ціна на NEAR зараз більша за {target_price:.2}$\nПоточна ціна: {price:.2}$"
+                                        "Ціна на NEAR зараз більше ніж {target_price:.2}$\nПоточна ціна: {price:.2}$"
                                     ),
                                 )
                                 .await?;
 
-                                triggered.push((*chat_id, target_price));
+                                triggered.push((*chat_id, trigger.clone()));
                             }
                         }
                     }
