@@ -12,7 +12,7 @@ mod commands;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    pretty_env_logger::init();
+    pretty_env_logger::init_timed();
     log::info!("Starting near price notifier bot...");
 
     let bot = Bot::from_env();
