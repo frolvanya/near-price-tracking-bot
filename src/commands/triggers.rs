@@ -76,7 +76,7 @@ pub async fn receive_price(
 ) -> HandlerResult {
     info!("Receiving trigger price...");
 
-    match msg.text().map(str::parse) {
+    match msg.text().map(|x| x.replace(',', ".").parse::<f64>()) {
         Some(Ok(price)) => {
             trigger.set(price);
             add_trigger(bot, trigger, msg.chat.id, triggers).await?;
@@ -199,7 +199,11 @@ pub async fn choose_trigger_to_delete(
 ) -> HandlerResult {
     info!("Receiving trigger to delete...");
 
-    match q.data.as_deref().map(str::parse) {
+    match q
+        .data
+        .as_deref()
+        .map(|x| x.replace(',', ".").parse::<f64>())
+    {
         Some(Ok(price)) => {
             delete(bot, dialogue.clone(), price, triggers).await?;
             dialogue.exit().await?;
