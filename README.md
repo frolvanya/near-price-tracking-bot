@@ -5,16 +5,10 @@ Bot is tracking current NEAR price and notifies you via Telegram without any del
 
 Commands:
 ```
-/help - display help menu
-
-/getprice - get current NEAR price
-
-/triggerlower {price} - notifies when NEAR price is <= current price
-/triggerhigher {price} - notifies when NEAR price is >= current price
-/triggers - notifies when NEAR price is <= current price
-
-/deletelower {price} - delete trigger for lower price
-/deletehigher {price} - delete trigger for higher price
-/delete {price} - delete triggers for lower AND higher prices
-/deleteall - delete ALL triggers
+/help — display this text
+/getprice — get current NEAR price
+/addtrigger — add new trigger
+/deletetrigger — delete selected trigger
+/deleteall — delete all triggers
+/listtriggers — list all my triggers
 ```
