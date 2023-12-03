@@ -1,8 +1,11 @@
-use crate::commands::{price, HandlerResult, MyDialogue, State, Trigger};
+use crate::commands::{price, HandlerResult, MyDialogue, State};
 
 use anyhow::Result;
-use bincode::{deserialize, serialize};
 use log::{error, info};
+
+use bincode::{deserialize, serialize};
+use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::fs::{read, write};
 
 use std::collections::HashMap;
@@ -13,6 +16,44 @@ use teloxide::{
     prelude::*,
     types::{InlineKeyboardButton, InlineKeyboardMarkup},
 };
+
+#[derive(PartialOrd, PartialEq, Clone, Serialize, Deserialize)]
+pub enum Trigger {
+    Lower(price::Price),
+    Higher(price::Price),
+}
+
+impl Trigger {
+    fn set(&mut self, price: price::Price) {
+        match self {
+            Self::Lower(x) | Self::Higher(x) => *x = price,
+        }
+    }
+
+    const fn price(&self) -> price::Price {
+        match self {
+            Self::Lower(x) | Self::Higher(x) => *x,
+        }
+    }
+}
+
+impl fmt::Display for Trigger {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Lower(x) => write!(f, "менша за {x:.2}$"),
+            Self::Higher(x) => write!(f, "більша за {x:.2}$"),
+        }
+    }
+}
+
+impl fmt::Debug for Trigger {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Lower(x) => write!(f, "Trigger::Lower({x:.2})"),
+            Self::Higher(x) => write!(f, "Trigger::Higher({x:.2})"),
+        }
+    }
+}
 
 pub async fn start(bot: Bot, dialogue: MyDialogue) -> HandlerResult {
     let buttons = [
@@ -79,7 +120,7 @@ pub async fn receive_price(
     match msg.text().map(|x| x.replace(',', ".").parse::<f64>()) {
         Some(Ok(price)) => {
             trigger.set(price);
-            add_trigger(bot, trigger, msg.chat.id, triggers).await?;
+            add(bot, trigger, msg.chat.id, triggers).await?;
 
             dialogue.exit().await?;
         }
@@ -91,13 +132,26 @@ pub async fn receive_price(
     Ok(())
 }
 
-pub async fn add_trigger(
+pub async fn add(
     bot: Bot,
     trigger: Trigger,
     chat_id: ChatId,
     triggers: Arc<Mutex<HashMap<ChatId, Vec<Trigger>>>>,
 ) -> HandlerResult {
     let mut locked_triggers = triggers.lock().await;
+
+    if locked_triggers
+        .entry(chat_id)
+        .or_default()
+        .iter()
+        .any(|x| x == &trigger)
+    {
+        info!("Trigger {trigger:?} already exists for chat {chat_id}");
+        bot.send_message(chat_id, format!("Тригер `{trigger:?}` вже існує"))
+            .await?;
+
+        return Ok(());
+    }
 
     locked_triggers
         .entry(chat_id)
@@ -297,7 +351,18 @@ pub async fn delete_all(
     info!("Deleting all triggers...");
 
     let mut locked_triggers = triggers.lock().await;
-    locked_triggers.entry(msg.chat.id).or_default().clear();
+
+    if !locked_triggers.contains_key(&msg.chat.id) {
+        info!("No triggers were found for chat {}", msg.chat.id);
+        bot.send_message(msg.chat.id, "У вас наразі немає тригерів")
+            .await?;
+        return Ok(());
+    }
+
+    if locked_triggers.contains_key(&msg.chat.id) {
+        info!("Deleting all triggers for chat {}", msg.chat.id);
+        locked_triggers.remove(&msg.chat.id);
+    }
 
     if let Err(err) = backup(&locked_triggers) {
         error!("Failed to backup triggers: {}", err);

@@ -23,4 +23,3 @@ COPY --from=build /near-price-tracking-bot/target/release/near-price-tracking-bo
 
 ENV RUST_LOG=info
 CMD ["./near-price-tracking-bot"]
-

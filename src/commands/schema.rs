@@ -1,4 +1,4 @@
-use crate::commands::{help, price, triggers, Command, MyDialogue, State, Trigger};
+use crate::commands::{help, price, triggers, Command, MyDialogue, State};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -30,8 +30,8 @@ pub async fn process() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync 
             |bot: Bot,
              dialogue: MyDialogue,
              msg: Message,
-             trigger: Trigger,
-             triggers: Arc<Mutex<HashMap<ChatId, Vec<Trigger>>>>| async move {
+             trigger: triggers::Trigger,
+             triggers: Arc<Mutex<HashMap<ChatId, Vec<triggers::Trigger>>>>| async move {
                 triggers::receive_price(bot, dialogue, msg, trigger, triggers).await
             },
         ),
@@ -43,7 +43,7 @@ pub async fn process() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync 
             |bot: Bot,
              dialogue: MyDialogue,
              q: CallbackQuery,
-             triggers: Arc<Mutex<HashMap<ChatId, Vec<Trigger>>>>| async move {
+             triggers: Arc<Mutex<HashMap<ChatId, Vec<triggers::Trigger>>>>| async move {
                 triggers::choose_trigger_to_delete(bot, dialogue, q, triggers).await
             },
         ));
