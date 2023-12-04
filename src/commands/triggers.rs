@@ -1,7 +1,7 @@
 use crate::commands::{price, HandlerResult, MyDialogue, State};
 
-use anyhow::Result;
-use log::{error, info};
+use anyhow::{Context, Result};
+use log::{error, info, warn};
 
 use bincode::{deserialize, serialize};
 use serde::{Deserialize, Serialize};
@@ -68,7 +68,8 @@ pub async fn start(bot: Bot, dialogue: MyDialogue) -> HandlerResult {
 
     bot.send_message(dialogue.chat_id(), "Оберіть тип тригера:")
         .reply_markup(InlineKeyboardMarkup::new(buttons))
-        .await?;
+        .await
+        .context("Failed to send Telegram message")?;
 
     dialogue.update(State::ReceiveTriggerType).await?;
 
@@ -85,27 +86,32 @@ pub async fn receive_trigger_type(
     match q.data.as_deref() {
         Some("Lower") => {
             bot.send_message(dialogue.chat_id(), "Вкажіть ціну:")
-                .await?;
+                .await
+                .context("Failed to send Telegram message")?;
 
             dialogue
                 .update(State::ReceivePrice {
                     trigger: Trigger::Lower(0.0),
                 })
-                .await?;
+                .await
+                .context("Failed to update state")?;
         }
         Some("Higher") => {
             bot.send_message(dialogue.chat_id(), "Вкажіть ціну:")
-                .await?;
+                .await
+                .context("Failed to send Telegram message")?;
 
             dialogue
                 .update(State::ReceivePrice {
                     trigger: Trigger::Higher(0.0),
                 })
-                .await?;
+                .await
+                .context("Failed to update state")?;
         }
         Some(_) | None => {
             bot.send_message(dialogue.chat_id(), "Оберіть одну з доступних опцій")
-                .await?;
+                .await
+                .context("Failed to send Telegram message")?;
         }
     }
 
@@ -121,16 +127,14 @@ pub async fn receive_price(
 ) -> HandlerResult {
     info!("Receiving trigger price...");
 
-    match msg.text().map(|x| x.replace(',', ".").parse::<f64>()) {
-        Some(Ok(price)) => {
-            trigger.set(price);
-            add(bot, trigger, msg.chat.id, triggers).await?;
+    if let Some(Ok(price)) = msg.text().map(|x| x.replace(',', ".").parse::<f64>()) {
+        trigger.set(price);
+        add(bot, trigger, msg.chat.id, triggers).await?;
 
-            dialogue.exit().await?;
-        }
-        _ => {
-            bot.send_message(msg.chat.id, "Вкажіть число:").await?;
-        }
+        dialogue.exit().await?;
+    } else {
+        warn!("User provided invalid price: {:?}", msg.text());
+        bot.send_message(msg.chat.id, "Вкажіть число:").await?;
     }
 
     Ok(())
@@ -151,8 +155,10 @@ pub async fn add(
         .any(|x| x == &trigger)
     {
         info!("Trigger {trigger:?} already exists for chat {chat_id}");
+
         bot.send_message(chat_id, format!("Тригер `{trigger:?}` вже існує"))
-            .await?;
+            .await
+            .context("Failed to send Telegram message")?;
 
         return Ok(());
     }
@@ -168,14 +174,15 @@ pub async fn add(
         .sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     if let Err(err) = backup(&locked_triggers) {
-        error!("Failed to backup triggers: {}", err);
+        error!("Failed to backup triggers, due to: {}", err);
     }
 
     bot.send_message(
         chat_id,
         format!("Вам прийде повідомлення якщо ціна буде {trigger}"),
     )
-    .await?;
+    .await
+    .context("Failed to send Telegram message")?;
 
     info!("Added {trigger:?} trigger NEAR price for chat {chat_id}");
 
@@ -206,7 +213,9 @@ pub async fn list(
         .iter()
         .for_each(|x| message.push_str(format!("{x}\n").as_str()));
 
-    bot.send_message(msg.chat.id, message).await?;
+    bot.send_message(msg.chat.id, message)
+        .await
+        .context("Failed to send Telegram message")?;
 
     Ok(())
 }
@@ -235,16 +244,20 @@ pub async fn show_trigger_to_delete(
     if buttons.is_empty() {
         bot.send_message(dialogue.chat_id(), "У вас наразі немає тригерів")
             .await?;
-        dialogue.exit().await?;
+        dialogue.exit().await.context("Failed to reset state")?;
 
         return Ok(());
     }
 
     bot.send_message(dialogue.chat_id(), "Оберіть тригер для видалення:")
         .reply_markup(InlineKeyboardMarkup::new(vec![buttons]))
-        .await?;
+        .await
+        .context("Failed to send Telegram message")?;
 
-    dialogue.update(State::DeleteTrigger).await?;
+    dialogue
+        .update(State::DeleteTrigger)
+        .await
+        .context("Failed to send update state")?;
 
     Ok(())
 }
@@ -264,11 +277,12 @@ pub async fn choose_trigger_to_delete(
     {
         Some(Ok(price)) => {
             delete(bot, dialogue.clone(), price, triggers).await?;
-            dialogue.exit().await?;
+            dialogue.exit().await.context("Failed to reset state")?;
         }
         _ => {
             bot.send_message(dialogue.chat_id(), "Оберіть одну з доступних опцій")
-                .await?;
+                .await
+                .context("Failed to send Telegram message")?;
         }
     }
 
@@ -312,7 +326,7 @@ fn remove_triggered(
     }
 
     if let Err(err) = backup(&locked_triggers) {
-        error!("Failed to backup triggers: {}", err);
+        error!("Failed to backup triggers, due to: {}", err);
     }
 
     found
@@ -336,7 +350,8 @@ pub async fn delete(
             dialogue.chat_id(),
             format!("Тригер на {price:.2}$ був видалений"),
         )
-        .await?;
+        .await
+        .context("Failed to send Telegram message")?;
     } else {
         info!(
             "No trigger was found to delete for chat {}",
@@ -347,7 +362,8 @@ pub async fn delete(
             dialogue.chat_id(),
             format!("Тригер {price:.2}$ не був знайдений"),
         )
-        .await?;
+        .await
+        .context("Failed to send Telegram message")?;
     }
 
     Ok(())
@@ -365,7 +381,9 @@ pub async fn delete_all(
     if !locked_triggers.contains_key(&msg.chat.id) {
         info!("No triggers were found for chat {}", msg.chat.id);
         bot.send_message(msg.chat.id, "У вас наразі немає тригерів")
-            .await?;
+            .await
+            .context("Failed to send Telegram message")?;
+
         return Ok(());
     }
 
@@ -375,11 +393,12 @@ pub async fn delete_all(
     }
 
     if let Err(err) = backup(&locked_triggers) {
-        error!("Failed to backup triggers: {}", err);
+        error!("Failed to backup triggers, due to: {}", err);
     }
 
     bot.send_message(msg.chat.id, "Всі тригери були видалені")
-        .await?;
+        .await
+        .context("Failed to send Telegram message")?;
 
     Ok(())
 }
@@ -397,7 +416,7 @@ pub async fn process(
         let mut triggered = Vec::new();
 
         if !locked_triggers.is_empty() {
-            let current_price = price::get();
+            let current_price = price::get().await;
 
             for (chat_id, triggers_vec) in locked_triggers.iter() {
                 if let Ok(price) = current_price {

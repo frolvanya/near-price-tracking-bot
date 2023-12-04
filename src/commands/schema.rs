@@ -39,8 +39,8 @@ pub async fn process() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync 
             |bot: Bot,
              dialogue: MyDialogue,
              q: CallbackQuery,
-             triggers: Arc<Mutex<HashMap<ChatId, Vec<triggers::Trigger>>>>| async move {
-                triggers::choose_trigger_to_delete(bot, dialogue, q, triggers).await
+             triggers: Arc<Mutex<HashMap<ChatId, Vec<triggers::Trigger>>>>| {
+                triggers::choose_trigger_to_delete(bot, dialogue, q, triggers)
             },
         ));
 
