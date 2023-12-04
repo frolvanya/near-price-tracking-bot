@@ -14,11 +14,7 @@ pub async fn process() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync 
     let command_handler = teloxide::filter_command::<Command, _>().branch(
         case![State::Start]
             .branch(case![Command::Help].endpoint(help::process))
-            .branch(case![Command::GetPrice].endpoint(
-                |bot: Bot, msg: Message, last_price: Arc<Mutex<price::Last>>| async move {
-                    price::process(bot, msg, Arc::clone(&last_price)).await
-                },
-            ))
+            .branch(case![Command::GetPrice].endpoint(price::process))
             .branch(case![Command::AddTrigger].endpoint(triggers::start))
             .branch(case![Command::DeleteTrigger].endpoint(triggers::show_trigger_to_delete))
             .branch(case![Command::DeleteAll].endpoint(triggers::delete_all))
@@ -31,8 +27,8 @@ pub async fn process() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync 
              dialogue: MyDialogue,
              msg: Message,
              trigger: triggers::Trigger,
-             triggers: Arc<Mutex<HashMap<ChatId, Vec<triggers::Trigger>>>>| async move {
-                triggers::receive_price(bot, dialogue, msg, trigger, triggers).await
+             triggers: Arc<Mutex<HashMap<ChatId, Vec<triggers::Trigger>>>>| {
+                triggers::receive_price(bot, dialogue, msg, trigger, triggers)
             },
         ),
     );

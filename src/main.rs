@@ -1,4 +1,4 @@
-use crate::commands::{price, schema, triggers, State};
+use crate::commands::{schema, triggers, State};
 
 use anyhow::Result;
 
@@ -25,23 +25,10 @@ async fn main() -> Result<()> {
         }
     };
 
-    let last_price = Arc::new(Mutex::new(price::Last {
-        price: None,
-        timestamp: 0,
-    }));
-
-    tokio::spawn(triggers::process(
-        bot.clone(),
-        triggers.clone(),
-        last_price.clone(),
-    ));
+    tokio::spawn(triggers::process(bot.clone(), triggers.clone()));
 
     Dispatcher::builder(bot, schema::process().await)
-        .dependencies(dptree::deps![
-            InMemStorage::<State>::new(),
-            last_price,
-            triggers
-        ])
+        .dependencies(dptree::deps![InMemStorage::<State>::new(), triggers])
         .enable_ctrlc_handler()
         .build()
         .dispatch()

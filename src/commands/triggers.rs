@@ -387,7 +387,6 @@ pub async fn delete_all(
 pub async fn process(
     bot: Bot,
     triggers: Arc<Mutex<HashMap<ChatId, Vec<Trigger>>>>,
-    last_price: Arc<Mutex<price::Last>>,
 ) -> ResponseResult<()> {
     let mut interval = interval(Duration::from_secs(1));
 
@@ -398,10 +397,10 @@ pub async fn process(
         let mut triggered = Vec::new();
 
         if !locked_triggers.is_empty() {
-            let current_price = price::get(&last_price).await;
+            let current_price = price::get();
 
             for (chat_id, triggers_vec) in locked_triggers.iter() {
-                if let Ok(Some(price)) = current_price {
+                if let Ok(price) = current_price {
                     for trigger in triggers_vec {
                         if let &Trigger::Lower(target_price) = trigger {
                             if price <= target_price {
