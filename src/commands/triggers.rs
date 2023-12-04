@@ -11,6 +11,7 @@ use std::fs::{read, write};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::time::{interval, Duration};
 
 use teloxide::{
     prelude::*,
@@ -388,7 +389,11 @@ pub async fn process(
     triggers: Arc<Mutex<HashMap<ChatId, Vec<Trigger>>>>,
     last_price: Arc<Mutex<price::Last>>,
 ) -> ResponseResult<()> {
+    let mut interval = interval(Duration::from_secs(1));
+
     loop {
+        interval.tick().await;
+
         let locked_triggers = triggers.lock().await;
         let mut triggered = Vec::new();
 
