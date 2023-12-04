@@ -61,8 +61,8 @@ impl fmt::Debug for Trigger {
 
 pub async fn start(bot: Bot, dialogue: MyDialogue) -> HandlerResult {
     let buttons = [
-        ("Ціна менше ніж ...", "Lower"),
         ("Ціна більше ніж ...", "Higher"),
+        ("Ціна менше ніж ...", "Lower"),
     ]
     .map(|(button, callback)| [InlineKeyboardButton::callback(button, callback)]);
 
