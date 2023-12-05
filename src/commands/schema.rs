@@ -1,4 +1,4 @@
-use crate::commands::{help, price, triggers, Command, MyDialogue, State};
+use crate::commands::{help, price, start, triggers, Command, MyDialogue, State};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -10,7 +10,7 @@ use teloxide::{
     prelude::*,
 };
 
-pub async fn process() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>> {
+pub fn process() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>> {
     let command_handler = teloxide::filter_command::<Command, _>().branch(
         case![State::Start]
             .branch(case![Command::Help].endpoint(help::process))
@@ -34,6 +34,7 @@ pub async fn process() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync 
     );
 
     let callback_query_handler = Update::filter_callback_query()
+        .branch(case![State::Start].endpoint(start))
         .branch(case![State::ReceiveTriggerType].endpoint(triggers::receive_trigger_type))
         .branch(case![State::DeleteTrigger].endpoint(
             |bot: Bot,

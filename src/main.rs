@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
 
     tokio::spawn(triggers::process(bot.clone(), triggers.clone()));
 
-    Dispatcher::builder(bot, schema::process().await)
+    Dispatcher::builder(bot, schema::process())
         .dependencies(dptree::deps![InMemStorage::<State>::new(), triggers])
         .enable_ctrlc_handler()
         .build()
