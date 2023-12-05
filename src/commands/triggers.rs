@@ -258,7 +258,12 @@ pub async fn show_trigger_to_delete(
     }
 
     bot.send_message(dialogue.chat_id(), "Оберіть тригер для видалення:")
-        .reply_markup(InlineKeyboardMarkup::new(vec![buttons]))
+        .reply_markup(InlineKeyboardMarkup::new(
+            buttons
+                .windows(2)
+                .map(<[InlineKeyboardButton]>::to_vec)
+                .collect::<Vec<_>>(),
+        ))
         .await
         .context("Failed to send Telegram message")?;
 
