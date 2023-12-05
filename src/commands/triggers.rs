@@ -71,7 +71,10 @@ pub async fn start(bot: Bot, dialogue: MyDialogue) -> HandlerResult {
         .await
         .context("Failed to send Telegram message")?;
 
-    dialogue.update(State::ReceiveTriggerType).await?;
+    dialogue
+        .update(State::ReceiveTriggerType)
+        .await
+        .context("Failed to update state")?;
 
     Ok(())
 }
@@ -131,10 +134,12 @@ pub async fn receive_price(
         trigger.set(price);
         add(bot, trigger, msg.chat.id, triggers).await?;
 
-        dialogue.exit().await?;
+        dialogue.exit().await.context("Failed to reset state")?;
     } else {
         warn!("User provided invalid price: {:?}", msg.text());
-        bot.send_message(msg.chat.id, "Вкажіть число:").await?;
+        bot.send_message(msg.chat.id, "Вкажіть число:")
+            .await
+            .context("Failed to send Telegram message")?;
     }
 
     Ok(())
@@ -146,6 +151,8 @@ pub async fn add(
     chat_id: ChatId,
     triggers: Arc<Mutex<HashMap<ChatId, Vec<Trigger>>>>,
 ) -> HandlerResult {
+    info!("Adding trigger...");
+
     let mut locked_triggers = triggers.lock().await;
 
     if locked_triggers
@@ -243,7 +250,8 @@ pub async fn show_trigger_to_delete(
 
     if buttons.is_empty() {
         bot.send_message(dialogue.chat_id(), "У вас наразі немає тригерів")
-            .await?;
+            .await
+            .context("Failed to send Telegram message")?;
         dialogue.exit().await.context("Failed to reset state")?;
 
         return Ok(());
