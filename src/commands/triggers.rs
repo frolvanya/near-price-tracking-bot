@@ -415,7 +415,7 @@ pub async fn process(
     bot: Bot,
     triggers: Arc<Mutex<HashMap<ChatId, Vec<Trigger>>>>,
 ) -> ResponseResult<()> {
-    let mut interval = interval(Duration::from_secs(1));
+    let mut interval = interval(Duration::from_millis(200));
 
     loop {
         interval.tick().await;
