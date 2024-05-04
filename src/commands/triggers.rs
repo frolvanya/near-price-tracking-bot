@@ -205,7 +205,9 @@ pub async fn list(
 
     let mut locked_triggers = triggers.lock().await;
 
-    let mut message = if locked_triggers.is_empty() {
+    let mut message = if !locked_triggers.contains_key(&msg.chat.id)
+        || locked_triggers[&msg.chat.id].is_empty()
+    {
         String::from("У вас наразі немає тригерів")
     } else {
         String::from(
