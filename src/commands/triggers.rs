@@ -218,6 +218,7 @@ pub async fn list(
         .entry(msg.chat.id)
         .or_default()
         .iter()
+        .rev()
         .for_each(|x| message.push_str(format!("{x}\n").as_str()));
 
     bot.send_message(msg.chat.id, message)
