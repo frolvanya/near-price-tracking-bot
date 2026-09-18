@@ -437,33 +437,38 @@ pub async fn process(
             for (chat_id, triggers_vec) in locked_triggers.iter() {
                 if let Ok(price) = current_price {
                     for trigger in triggers_vec {
-                        if let &Trigger::Lower(target_price) = trigger {
-                            if price <= target_price {
+                        let message = match trigger {
+                            &Trigger::Lower(target_price) if price <= target_price => {
                                 info!("NEAR price is lower than {target_price:.2}$ for chat {chat_id}");
 
-                                bot.send_message(
-                                    *chat_id,
-                                    format!(
-                                        "Ціна на NEAR зараз менше ніж {target_price:.2}$\nПоточна ціна: {price:.2}$"
-                                    ),
-                                )
-                                .await?;
-
-                                triggered.push((*chat_id, trigger.clone()));
+                                Some(format!(
+                                    "Ціна на NEAR зараз менше ніж {target_price:.2}$\nПоточна ціна: {price:.2}$"
+                                ))
                             }
-                        } else if let &Trigger::Higher(target_price) = trigger {
-                            if price >= target_price {
+                            &Trigger::Higher(target_price) if price >= target_price => {
                                 info!("NEAR price is higher than {target_price:.2}$ for chat {chat_id}");
 
-                                bot.send_message(
-                                    *chat_id,
-                                    format!(
-                                        "Ціна на NEAR зараз більше ніж {target_price:.2}$\nПоточна ціна: {price:.2}$"
-                                    ),
-                                )
-                                .await?;
+                                Some(format!(
+                                    "Ціна на NEAR зараз більше ніж {target_price:.2}$\nПоточна ціна: {price:.2}$"
+                                ))
+                            }
+                            _ => None,
+                        };
 
-                                triggered.push((*chat_id, trigger.clone()));
+                        if let Some(message) = message {
+                            // A failed send must never end this loop: it is spawned as a
+                            // background task, so returning here would stop notifications
+                            // for every chat until the process is restarted.
+                            match bot.send_message(*chat_id, message).await {
+                                Ok(_) => triggered.push((*chat_id, trigger.clone())),
+                                Err(teloxide::RequestError::Api(err)) => {
+                                    error!("Telegram rejected the notification for chat {chat_id}: {err}. Dropping trigger {trigger:?}");
+
+                                    triggered.push((*chat_id, trigger.clone()));
+                                }
+                                Err(err) => {
+                                    error!("Failed to notify chat {chat_id}: {err}. Keeping trigger {trigger:?} for the next attempt");
+                                }
                             }
                         }
                     }
